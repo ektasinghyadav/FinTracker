@@ -1,4 +1,4 @@
-# FinanceFlow – Personal Expense Tracker
+# FinTracker – Personal Expense Tracker
 
 A simple and responsive personal finance tracker built with HTML, CSS, and JavaScript. Users can track expenses, set budgets, and visualize spending patterns with interactive charts.
 
@@ -21,7 +21,7 @@ A simple and responsive personal finance tracker built with HTML, CSS, and JavaS
 
 ## Live Demo
 
-Coming soon
+https://ektasinghyadav.github.io/FinTracker/
 
 ## How to Use
 
