@@ -1,0 +1,26 @@
+{
+  "name": "fintracker",
+  "version": "1.0.0",
+  "description": "FinTracker AI - Personal Finance Assistant",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js"
+  },
+  "dependencies": {
+    "@ai-sdk/huggingface": "^1.0.37",
+    "@ai-sdk/openai-compatible": "^2.0.35",
+    "@google/generative-ai": "^0.24.1",
+    "ai": "^6.0.116",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.2.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

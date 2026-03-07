@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FinTracker - Personal Expense Tracker</title>
+    <title>FinTracker AI - Personal Finance Assistant</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Using Chart.js for the graphs -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -13,8 +13,12 @@
         <!-- Main Header -->
         <header class="header">
             <div class="header-content">
-                <h1 class="logo">FinTracker</h1>
-                <p class="tagline">Take control of your spending</p>
+                <h1 class="logo">FinTracker <span class="logo-ai">AI</span></h1>
+                <p class="tagline">Your AI-powered personal finance assistant</p>
+                <div class="header-user">
+                    <span id="userName" class="user-name"></span>
+                    <button id="logoutBtn" class="btn-logout">Logout</button>
+                </div>
             </div>
             <!-- Stats cards showing total and remaining -->
             <div class="header-stats">
@@ -41,11 +45,62 @@
             <div id="budgetAlert" class="budget-alert hidden"></div>
         </section>
 
+        <!-- Budget Forecast Section -->
+        <section class="forecast-section">
+            <div class="section-header">
+                <h2>Budget Forecast</h2>
+                <span id="riskBadge" class="risk-badge hidden">Low Risk</span>
+            </div>
+            <div id="forecastPanel" class="forecast-panel">
+                <p class="insights-empty">Set a budget and add some expenses to see your forecast.</p>
+            </div>
+        </section>
+
+        <!-- Financial Insights Section -->
+        <section class="insights-section">
+            <div class="section-header">
+                <h2>Financial Insights</h2>
+                <span class="ai-badge">AI</span>
+            </div>
+
+            <!-- Streaming AI Summary -->
+            <div class="ai-summary-card">
+                <div class="ai-summary-header">
+                    <span class="ai-badge">AI</span>
+                    <span class="ai-summary-label">Personalized Summary</span>
+                    <button id="generateSummaryBtn" class="btn btn-ai btn-sm">Generate AI Summary</button>
+                </div>
+                <div id="aiSummaryOutput" class="ai-summary-output hidden">
+                    <p id="aiSummaryText"></p>
+                    <span id="streamCursor" class="stream-cursor" style="display:none;">▋</span>
+                </div>
+            </div>
+
+            <div id="insightsPanel" class="insights-panel">
+                <p class="insights-empty">Add some expenses to see AI-powered insights.</p>
+            </div>
+        </section>
+
         <!-- Add Expense Form -->
         <section class="add-expense-section">
             <div class="section-header">
                 <h2>Add Expense</h2>
             </div>
+
+            <!-- AI Natural Language Input -->
+            <div class="nl-input-wrapper">
+                <div class="nl-header">
+                    <span class="ai-badge">AI</span>
+                    <p>Describe your expense in plain words and let AI fill the form for you</p>
+                </div>
+                <div class="nl-controls">
+                    <input type="text" id="nlInput" placeholder='e.g. "Spent 450 on dinner" or "Paid 2000 for electricity bill"'>
+                    <button id="nlParseBtn" class="btn btn-ai" type="button">Parse with AI</button>
+                </div>
+                <div id="nlPreview" class="nl-preview hidden"></div>
+                <div class="nl-divider"><span>or fill the form manually</span></div>
+            </div>
+
             <form id="expenseForm" class="expense-form">
                 <div class="form-row">
                     <div class="form-group">
@@ -59,7 +114,7 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="expenseCategory">Category</label>
+                        <label for="expenseCategory">Category <span id="aiCategoryBadge" class="ai-suggest-badge hidden">AI suggested</span></label>
                         <select id="expenseCategory" required>
                             <option value="">Select category</option>
                             <option value="Food & Dining">Food & Dining</option>
@@ -117,6 +172,60 @@
     <footer class="footer-credit">
         made with ❤️ by Ekta
     </footer>
+
+    <!-- Auth screen — shown when user is not logged in -->
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-card">
+            <h1 class="auth-logo">FinTracker <span class="logo-ai">AI</span></h1>
+            <p class="auth-tagline">Your AI-powered personal finance assistant</p>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">Login</button>
+                <button class="auth-tab" data-tab="register">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" placeholder="Your password" required>
+                </div>
+                <div id="loginError" class="auth-error hidden"></div>
+                <button type="submit" class="btn btn-primary btn-full">Login</button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="auth-form hidden">
+                <div class="form-group">
+                    <label for="registerName">Name</label>
+                    <input type="text" id="registerName" placeholder="Your name" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input type="email" id="registerEmail" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">Password</label>
+                    <input type="password" id="registerPassword" placeholder="At least 6 characters" required>
+                </div>
+                <div id="registerError" class="auth-error hidden"></div>
+                <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Loading overlay — shown while server data loads on startup -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading your data...</p>
+    </div>
+
+    <!-- Toast notification container — toasts appear here -->
+    <div id="toastContainer" class="toast-container"></div>
 
     <script src="app.js"></script>
 </body>
