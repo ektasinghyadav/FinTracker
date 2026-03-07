@@ -31,6 +31,12 @@ app.use('/api', expensesRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/ai/stream', streamRouter);
 
-app.listen(PORT, () => {
-    console.log(`FinTracker server running at http://localhost:${PORT}`);
-});
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`FinTracker server running at http://localhost:${PORT}`);
+    });
+}
+
+// For Vercel serverless — export the app instead of calling listen()
+module.exports = app;
