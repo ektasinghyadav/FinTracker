@@ -1,44 +1,50 @@
-# FinTracker – Personal Expense Tracker
+# FinTracker AI – Personal Finance Assistant
 
-A simple and responsive personal finance tracker built with HTML, CSS, and JavaScript. Users can track expenses, set budgets, and visualize spending patterns with interactive charts.
+An AI-powered personal finance tracker built with HTML, CSS, JavaScript, Node.js, Express, and MongoDB. Users can track expenses, set budgets, visualize spending patterns, and get AI-generated financial insights.
 
 ## Features
 
-- Add, edit, and delete expenses by category  
-- Set monthly budgets with real-time alerts  
-- Visualize spending trends and budget breakdowns  
-- Filter expenses by category or date  
-- Responsive design for desktop and mobile  
-- Data stored locally for persistence  
+- User authentication (register/login with JWT sessions)
+- Add expenses via natural language (e.g. "spent 200 on lunch today")
+- AI auto-categorization of expenses using Hugging Face
+- Set monthly budgets with real-time alerts
+- Visualize spending trends and budget breakdowns with charts
+- AI-generated financial summary and insights
+- Budget forecasting with risk assessment
+- Per-user data stored in MongoDB
+- Responsive design for desktop and mobile
 
 ## Tech Stack
 
-- **HTML5** – structure  
-- **CSS3** – styling and layout (Grid, Flexbox, Variables)  
-- **JavaScript (ES6)** – app logic and interactivity  
-- **Chart.js** – visualizations  
-- **LocalStorage API** – data persistence  
+- **HTML5 / CSS3 / JavaScript (ES6)** – frontend
+- **Chart.js** – visualizations
+- **Node.js + Express.js** – backend API
+- **MongoDB + Mongoose** – database
+- **JWT + bcryptjs** – authentication
+- **Hugging Face Inference API** – AI expense classification
+- **Google Gemini API** – AI financial summary (streaming)
+- **Vercel** – deployment
 
 ## Live Demo
 
-https://ektasinghyadav.github.io/FinTracker/
+https://fin-tracker-beige.vercel.app/
 
 ## How to Use
 
-1. Set your monthly budget.  
-2. Add expenses with name, amount, category, and date.  
-3. Check charts to see trends and category breakdown.  
-4. Use filters to view specific categories or time periods.  
+1. Register an account or log in.
+2. Set your monthly budget.
+3. Add expenses manually or by typing in plain language.
+4. Check charts to see trends and category breakdown.
+5. Use AI Summary to get personalized financial insights.
 
-## Future Enhancements
+## Local Setup
 
-- Edit and delete expenses directly  
-- Export data to CSV  
-- Multiple budget periods (weekly, yearly)  
-- Income tracking and recurring expenses  
-- Dark/light theme toggle  
+1. Clone the repo and run `npm install`
+2. Copy `.env.example` to `.env` and fill in your values
+3. Run `node server/index.js`
+4. Open `http://localhost:3000`
 
 ## Author
 
-**Ekta Singh Yadav**  
+**Ekta Singh Yadav**
 GitHub: [ektasinghyadav](https://github.com/ektasinghyadav)
