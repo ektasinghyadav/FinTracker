@@ -119,6 +119,7 @@ async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     currentUser = null;
     expenses    = [];
+    listExpenses = [];
     budget      = 0;
 
     // Reset all UI panels
@@ -154,7 +155,10 @@ function setupAuthTabs() {
 }
 
 // Global variables for storing data
-let expenses = [];
+let expenses = [];      // this month's expenses (used for stats, charts, forecast, insights)
+let listExpenses = [];  // the expenses shown in the list (may be filtered)
+let listFilter = { type: 'month', month: '' }; // current list filter: month, range or all
+let editingId = null;   // id of the expense open in the edit window
 let budget = 0;
 let categoryChart = null;
 let timeChart = null;
@@ -238,6 +242,9 @@ async function initApp() {
         document.getElementById('aiCategoryBadge').classList.add('hidden');
     };
 
+    setupListFilters();
+    setupEditModal();
+
     console.log('App initialized successfully!');
 }
 
@@ -263,18 +270,61 @@ function setDateRestrictions() {
     console.log('Date restricted to current month:', formatDate(firstDay), 'to', formatDate(lastDay));
 }
 
-// Load expenses and budget from our server API
-// (was: reading from localStorage)
+// ─── SERVER CALLS AND DATA LOADING ────────────────────────────────────────────
+
+// Calls our API and returns the JSON reply.
+// If the server answers with an error, this throws an Error with the server's message,
+// so the caller can show it instead of pretending everything worked.
+async function api(url, options = {}) {
+    let res;
+    try {
+        res = await fetch(url, {
+            method: options.method || 'GET',
+            headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+            body: options.body ? JSON.stringify(options.body) : undefined
+        });
+    } catch (err) {
+        throw new Error('Could not reach the server. Is it running?');
+    }
+
+    let data = null;
+    try {
+        data = await res.json();
+    } catch (err) {
+        // the reply had no JSON body — that is fine
+    }
+
+    if (!res.ok) {
+        throw new Error((data && data.error) || 'Something went wrong. Please try again.');
+    }
+    return data;
+}
+
+// Date as "YYYY-MM-DD" using the user's local date (not UTC)
+function localDateString(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// The current month as "YYYY-MM"
+function currentMonth() {
+    return localDateString(new Date()).slice(0, 7);
+}
+
+// Load this month's expenses and the budget from our server API
 async function loadData() {
     try {
         // Fetch expenses and budget at the same time (parallel requests)
-        const [expensesRes, budgetRes] = await Promise.all([
-            fetch(`${API_URL}/expenses`),
-            fetch(`${API_URL}/budget`)
+        const [monthExpenses, budgetData] = await Promise.all([
+            api(`${API_URL}/expenses?month=${currentMonth()}`),
+            api(`${API_URL}/budget`)
         ]);
 
-        expenses = await expensesRes.json();
-        const budgetData = await budgetRes.json();
+        expenses = monthExpenses;
+        listExpenses = monthExpenses;
+        listFilter = { type: 'month', month: currentMonth() };
         budget = budgetData.amount;
 
         if (budget > 0) {
@@ -284,7 +334,129 @@ async function loadData() {
         console.log('Loaded expenses:', expenses.length, '| Budget:', budget);
     } catch (err) {
         console.error('Failed to load data from server:', err);
-        showToast('Could not connect to the server. Run: npm run dev', 'error');
+        showToast(err.message, 'error');
+    }
+}
+
+// Reload this month's expenses and the list from the server, then redraw everything.
+// Called after every add, edit, delete or clear.
+async function refreshAll() {
+    expenses = await api(`${API_URL}/expenses?month=${currentMonth()}`);
+    await loadList();
+    renderExpenses();
+    updateStats();
+    updateCharts();
+    checkBudget();
+    forecastBudget();
+    generateInsights();
+}
+
+// ─── EXPENSE LIST FILTER ──────────────────────────────────────────────────────
+
+// Turns the current filter into the query text for GET /api/expenses
+function listQuery() {
+    if (listFilter.type === 'month') {
+        return `?month=${listFilter.month}`;
+    }
+    if (listFilter.type === 'range') {
+        const params = new URLSearchParams();
+        if (listFilter.from) params.set('from', listFilter.from);
+        if (listFilter.to)   params.set('to', listFilter.to);
+        return `?${params.toString()}`;
+    }
+    return ''; // "all"
+}
+
+// Is the list showing the same data as this month's expenses?
+function isCurrentMonthView() {
+    return listFilter.type === 'month' && listFilter.month === currentMonth();
+}
+
+// Fill listExpenses according to the current filter
+async function loadList() {
+    if (isCurrentMonthView()) {
+        listExpenses = expenses; // already loaded, no extra request needed
+        return;
+    }
+    listExpenses = await api(`${API_URL}/expenses${listQuery()}`);
+}
+
+// Short sentence under the filter that says what the list is showing
+function updateListLabel() {
+    const label = document.getElementById('listFilterLabel');
+    let what;
+
+    if (listFilter.type === 'month') {
+        const [year, month] = listFilter.month.split('-');
+        what = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    } else if (listFilter.type === 'range') {
+        what = `${listFilter.from || 'the beginning'} to ${listFilter.to || 'today and later'}`;
+    } else {
+        what = 'all expenses';
+    }
+
+    label.textContent = `Showing ${what} — ${listExpenses.length} expense${listExpenses.length === 1 ? '' : 's'}`;
+}
+
+function setupListFilters() {
+    const select = document.getElementById('filterMonth');
+    select.innerHTML = '';
+
+    // The month dropdown lists the last 12 months, newest first
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const option = document.createElement('option');
+        option.value = localDateString(d).slice(0, 7);
+        option.textContent = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        select.appendChild(option);
+    }
+
+    document.getElementById('filterFrom').value = '';
+    document.getElementById('filterTo').value = '';
+
+    document.getElementById('applyFilterBtn').onclick = applyListFilter;
+    document.getElementById('thisMonthBtn').onclick = () => {
+        select.value = currentMonth();
+        document.getElementById('filterFrom').value = '';
+        document.getElementById('filterTo').value = '';
+        listFilter = { type: 'month', month: currentMonth() };
+        reloadList();
+    };
+    document.getElementById('showAllBtn').onclick = () => {
+        document.getElementById('filterFrom').value = '';
+        document.getElementById('filterTo').value = '';
+        listFilter = { type: 'all' };
+        reloadList();
+    };
+
+    updateListLabel();
+}
+
+// "Apply" button: a custom date range wins if either date is filled, otherwise use the month
+function applyListFilter() {
+    const from = document.getElementById('filterFrom').value;
+    const to   = document.getElementById('filterTo').value;
+
+    if (from || to) {
+        if (from && to && from > to) {
+            showToast('The From date must not be after the To date', 'warning');
+            return;
+        }
+        listFilter = { type: 'range', from, to };
+    } else {
+        listFilter = { type: 'month', month: document.getElementById('filterMonth').value };
+    }
+
+    reloadList();
+}
+
+async function reloadList() {
+    try {
+        await loadList();
+        renderExpenses();
+    } catch (err) {
+        showToast(err.message, 'error');
     }
 }
 
@@ -712,43 +884,21 @@ async function addExpense(e) {
 
     try {
         // POST the new expense to our server — it saves it to MongoDB
-        const res = await fetch(`${API_URL}/expenses`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(expenseData)
-        });
-
-        // The server sends back the saved expense (now with a MongoDB _id)
-        const savedExpense = await res.json();
-        expenses.push(savedExpense);
+        await api(`${API_URL}/expenses`, { method: 'POST', body: expenseData });
 
         // Reset form and clear the AI category badge
         expenseForm.reset();
         document.getElementById('aiCategoryBadge').classList.add('hidden');
+        document.getElementById('expenseDate').value = localDateString(new Date());
 
-        // Reset date to today
-        const today = new Date();
-        const formatDate = (date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
-        document.getElementById('expenseDate').value = formatDate(today);
-
-        // Update UI
-        renderExpenses();
-        updateStats();
-        updateCharts();
-        checkBudget();
-        forecastBudget();
-        generateInsights();
+        // Reload from the server and update the screen
+        await refreshAll();
 
         showToast('Expense added successfully!', 'success');
 
     } catch (err) {
         console.error('Failed to add expense:', err);
-        showToast('Could not save expense. Is the server running?', 'error');
+        showToast(err.message, 'error');
     }
 }
 
@@ -758,41 +908,43 @@ async function setBudget() {
 
     if (value > 0) {
         try {
-            await fetch(`${API_URL}/budget`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: value })
-            });
+            await api(`${API_URL}/budget`, { method: 'POST', body: { amount: value } });
 
             budget = value;
             console.log('Budget set to:', budget);
 
             updateStats();
             checkBudget();
+            updateCharts();
             forecastBudget();
             generateInsights();
             showToast('Budget updated!', 'success');
 
         } catch (err) {
             console.error('Failed to save budget:', err);
-            showToast('Could not save budget. Is the server running?', 'error');
+            showToast(err.message, 'error');
         }
     } else {
         showToast('Please enter a valid budget amount', 'warning');
     }
 }
 
-// Render expenses list
+// Render expenses list (shows listExpenses, which follows the filter)
 function renderExpenses() {
-    const filteredExpenses = getFilteredExpenses();
+    const filteredExpenses = [...listExpenses];
 
     console.log('Rendering', filteredExpenses.length, 'expenses');
 
+    updateListLabel();
+
     // Show empty state if no expenses
     if (filteredExpenses.length === 0) {
+        const message = isCurrentMonthView()
+            ? 'No expenses yet. Add your first expense to get started!'
+            : 'No expenses match this filter.';
         expensesList.innerHTML = `
             <div class="empty-state">
-                <p>No expenses yet. Add your first expense to get started!</p>
+                <p>${message}</p>
             </div>
         `;
         return;
@@ -817,6 +969,7 @@ function renderExpenses() {
             </div>
             <div class="expense-amount">₹${expense.amount.toFixed(2)}</div>
             <div class="expense-actions">
+                <button class="btn-icon btn-edit" onclick="openEditModal('${expense._id}')" title="Edit">✏️</button>
                 <button class="btn-icon btn-delete" onclick="deleteExpense('${expense._id}')" title="Delete">🗑️</button>
             </div>
         </div>
@@ -826,9 +979,56 @@ function renderExpenses() {
     expensesList.innerHTML = html;
 }
 
-// Get all expenses (no filters)
-function getFilteredExpenses() {
-    return [...expenses];
+// ─── EDIT EXPENSE ─────────────────────────────────────────────────────────────
+
+function setupEditModal() {
+    document.getElementById('editForm').onsubmit = saveEdit;
+    document.getElementById('editCancelBtn').onclick = closeEditModal;
+    // clicking the dark area outside the window closes it too
+    document.getElementById('editModal').onclick = (e) => {
+        if (e.target.id === 'editModal') closeEditModal();
+    };
+}
+
+// Open the edit window filled with the expense's current values
+function openEditModal(id) {
+    const expense = listExpenses.find(exp => exp._id === id);
+    if (!expense) return;
+
+    editingId = id;
+    document.getElementById('editName').value     = expense.name;
+    document.getElementById('editAmount').value   = expense.amount;
+    document.getElementById('editCategory').value = expense.category;
+    document.getElementById('editDate').value     = expense.date;
+    document.getElementById('editModal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+    editingId = null;
+    document.getElementById('editModal').classList.add('hidden');
+}
+
+// Save the edited expense (PUT /api/expenses/:id)
+async function saveEdit(e) {
+    e.preventDefault();
+    if (!editingId) return;
+
+    const expenseData = {
+        name: document.getElementById('editName').value,
+        amount: parseFloat(document.getElementById('editAmount').value),
+        category: document.getElementById('editCategory').value,
+        date: document.getElementById('editDate').value
+    };
+
+    try {
+        await api(`${API_URL}/expenses/${editingId}`, { method: 'PUT', body: expenseData });
+        closeEditModal();
+        await refreshAll();
+        showToast('Expense updated!', 'success');
+    } catch (err) {
+        console.error('Failed to update expense:', err);
+        showToast(err.message, 'error');
+    }
 }
 
 // Delete an expense
@@ -837,21 +1037,13 @@ async function deleteExpense(id) {
         console.log('Deleting expense with id:', id);
 
         try {
-            await fetch(`${API_URL}/expenses/${id}`, { method: 'DELETE' });
-
-            // Remove from local array so UI updates immediately
-            expenses = expenses.filter(exp => exp._id !== id);
-
-            renderExpenses();
-            updateStats();
-            updateCharts();
-            checkBudget();
-            forecastBudget();
-            generateInsights();
+            await api(`${API_URL}/expenses/${id}`, { method: 'DELETE' });
+            await refreshAll();
+            showToast('Expense deleted', 'success');
 
         } catch (err) {
             console.error('Failed to delete expense:', err);
-            showToast('Could not delete expense. Is the server running?', 'error');
+            showToast(err.message, 'error');
         }
     }
 }
@@ -862,19 +1054,13 @@ async function clearAllExpenses() {
         console.log('Clearing all expenses');
 
         try {
-            await fetch(`${API_URL}/expenses`, { method: 'DELETE' });
-
-            expenses = [];
-            renderExpenses();
-            updateStats();
-            updateCharts();
-            checkBudget();
-            forecastBudget();
-            generateInsights();
+            await api(`${API_URL}/expenses`, { method: 'DELETE' });
+            await refreshAll();
+            showToast('All expenses cleared', 'success');
 
         } catch (err) {
             console.error('Failed to clear expenses:', err);
-            showToast('Could not clear expenses. Is the server running?', 'error');
+            showToast(err.message, 'error');
         }
     }
 }
@@ -1003,7 +1189,7 @@ function initCharts() {
 function updateCharts() {
     if (!categoryChart || !timeChart) return;
 
-    const filtered = getFilteredExpenses();
+    const filtered = expenses; // this month only
 
     // Update category chart - shows budget breakdown
     const categoryData = {};
@@ -1049,25 +1235,24 @@ function updateCharts() {
 
     categoryChart.update();
 
-    // Update bar chart - last 7 days
-    const last7Days = [];
+    // Update bar chart - one bar for every day of the current month
     const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const monthPrefix = currentMonth() + '-';
 
-    for (let i = 6; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        last7Days.push(date.toISOString().split('T')[0]);
+    const dayLabels = [];
+    const dailyData = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateText = monthPrefix + String(day).padStart(2, '0');
+        dayLabels.push(String(day));
+        dailyData.push(
+            filtered
+                .filter(exp => exp.date === dateText)
+                .reduce((sum, exp) => sum + exp.amount, 0)
+        );
     }
 
-    const dailyData = last7Days.map(date => {
-        return filtered
-            .filter(exp => exp.date === date)
-            .reduce((sum, exp) => sum + exp.amount, 0);
-    });
-
-    timeChart.data.labels = last7Days.map(date => {
-        return new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
-    });
+    timeChart.data.labels = dayLabels;
     timeChart.data.datasets[0].data = dailyData;
     timeChart.update();
 
