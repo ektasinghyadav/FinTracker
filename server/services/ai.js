@@ -22,14 +22,24 @@ const CATEGORIES = [
 // Makes a POST request to a Hugging Face model
 // "model" is the model ID on Hugging Face (e.g. "facebook/bart-large-mnli")
 async function hfRequest(model, payload) {
-    const res = await fetch(`${HF_API_URL}/${model}`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${HF_TOKEN}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-    });
+    let res;
+    try {
+        res = await fetch(`${HF_API_URL}/${model}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${HF_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload),
+            // give up after 15 seconds so the user is never left waiting
+            signal: AbortSignal.timeout(15000)
+        });
+    } catch (err) {
+        if (err.name === 'TimeoutError') {
+            throw new Error('The AI service took too long to respond. Please enter the expense manually.');
+        }
+        throw new Error('Could not reach the AI service. Please enter the expense manually.');
+    }
 
     // If the model is loading (cold start), HF returns 503
     if (res.status === 503) {

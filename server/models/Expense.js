@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const expenseSchema = new mongoose.Schema({
     userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name:      { type: String, required: true },
-    amount:    { type: Number, required: true },
+    amount:    { type: Number, required: true, min: 0.01 }, // must be greater than 0
     category:  { type: String, required: true },
     date:      { type: String, required: true }, // stored as "YYYY-MM-DD" string
     timestamp: { type: Number, default: () => Date.now() }

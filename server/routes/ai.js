@@ -19,7 +19,8 @@ router.post('/classify', async (req, res) => {
 
     } catch (err) {
         console.error('Classification error:', err.message);
-        res.status(500).json({ error: err.message });
+        // 502 = the AI service failed (not our server)
+        res.status(502).json({ error: err.message });
     }
 });
 
@@ -40,7 +41,7 @@ router.post('/parse', async (req, res) => {
 
     } catch (err) {
         console.error('Parse error:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(502).json({ error: err.message });
     }
 });
 

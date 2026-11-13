@@ -16,9 +16,11 @@ const COOKIE_OPTIONS = {
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, password } = req.body;
+        // Emails are stored in lowercase, so look them up in lowercase too
+        const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
 
-        if (!name || !email || !password) {
+        if (typeof name !== 'string' || !name.trim() || !email || typeof password !== 'string' || !password) {
             return res.status(400).json({ error: 'Name, email and password are required' });
         }
         if (password.length < 6) {
@@ -27,7 +29,7 @@ router.post('/register', async (req, res) => {
 
         const existing = await User.findOne({ email });
         if (existing) {
-            return res.status(400).json({ error: 'An account with this email already exists' });
+            return res.status(409).json({ error: 'An account with this email already exists' });
         }
 
         // Hash the password — never store plain text passwords
@@ -41,6 +43,10 @@ router.post('/register', async (req, res) => {
         res.status(201).json({ name: user.name, email: user.email });
 
     } catch (err) {
+        // 11000 = two sign-ups with the same email arrived at the same moment
+        if (err.code === 11000) {
+            return res.status(409).json({ error: 'An account with this email already exists' });
+        }
         console.error('Register error:', err.message);
         res.status(500).json({ error: 'Registration failed' });
     }
@@ -49,7 +55,12 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { password } = req.body;
+        const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+        if (!email || typeof password !== 'string' || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
 
         const user = await User.findOne({ email });
         if (!user) {
