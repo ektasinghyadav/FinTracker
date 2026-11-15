@@ -41,11 +41,11 @@ app.use('/api', async (req, res, next) => {
 
 // API routes — all our data endpoints start with /api
 app.use('/api/auth', authRouter);
-// Every AI route (classify, parse, stream) needs a logged-in user
-app.use('/api/ai', authMiddleware);
+// The AI routes (classify and the streamed summary) need a logged-in user
+app.use('/api/ai', authMiddleware, aiRouter);
+app.use('/api/stream', authMiddleware, streamRouter);
+// Expenses and budget (this router checks the login itself)
 app.use('/api', expensesRouter);
-app.use('/api/ai', aiRouter);
-app.use('/api/ai/stream', streamRouter);
 
 // For local development
 if (process.env.NODE_ENV !== 'production') {

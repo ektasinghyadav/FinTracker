@@ -24,7 +24,7 @@ function setDateRestrictions() {
     console.log('Date restricted to current month:', formatDate(firstDay), 'to', formatDate(lastDay));
 }
 
-// Auto-classify category from the description field (manual form)
+// Auto-suggest the category from the description field (manual form)
 // Triggered when user clicks away from the Description input (blur event)
 async function autoClassifyFromDescription() {
     const description = document.getElementById('expenseName').value.trim();
@@ -37,20 +37,14 @@ async function autoClassifyFromDescription() {
     badge.classList.remove('hidden');
 
     try {
-        const res = await fetch(`${API_URL}/ai/classify`, {
+        const data = await api(`${API_URL}/ai/classify`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: description })
+            body: { text: description, today: localDateString(new Date()) }
         });
 
-        const data = await res.json();
+        document.getElementById('expenseCategory').value = data.category;
+        badge.textContent = data.source === 'ai' ? 'AI suggested' : 'Suggested';
 
-        if (data.category) {
-            document.getElementById('expenseCategory').value = data.category;
-            const pct = Math.round((data.confidence || 0) * 100);
-            badge.textContent = `AI suggested (${pct}%)`;
-            console.log('AI classified:', description, '→', data.category, `(${pct}%)`);
-        }
     } catch (err) {
         // Silently fail — user can still pick a category manually
         badge.classList.add('hidden');
@@ -58,8 +52,8 @@ async function autoClassifyFromDescription() {
     }
 }
 
-// Handle natural language expense parsing
-// Flow: user types sentence → AI extracts data → form auto-fills → user confirms
+// Handle natural language expense entry
+// Flow: user types sentence -> server reads it (POST /api/ai/classify) -> form auto-fills -> user confirms
 async function handleNLParse() {
     const input = document.getElementById('nlInput');
     const btn = document.getElementById('nlParseBtn');
@@ -71,38 +65,33 @@ async function handleNLParse() {
         return;
     }
 
-    // Show loading state while waiting for AI response
+    // Show loading state while waiting for the server
     btn.classList.add('loading');
     btn.disabled = true;
     preview.classList.add('hidden');
 
     try {
-        const res = await fetch(`${API_URL}/ai/parse`, {
+        const data = await api(`${API_URL}/ai/classify`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text })
+            body: { text, today: localDateString(new Date()) }
         });
 
-        const data = await res.json();
-
-        if (data.error) throw new Error(data.error);
-
-        // Auto-fill the expense form with what AI extracted
+        // Auto-fill the expense form with what was understood
         if (data.description) document.getElementById('expenseName').value = data.description;
         if (data.amount)      document.getElementById('expenseAmount').value = data.amount;
         if (data.category)    document.getElementById('expenseCategory').value = data.category;
         if (data.date)        document.getElementById('expenseDate').value = data.date;
 
-        // Show a preview card so user can see what AI understood
-        const confidencePct = Math.round((data.confidence || 0) * 100);
+        // Show a preview card so the user can see what was understood
+        const usedAI = data.source === 'ai';
         preview.innerHTML = `
             <div class="preview-content">
-                <span class="ai-badge">AI</span>
+                <span class="ai-badge">${usedAI ? 'AI' : 'Auto'}</span>
                 <span>Understood: <strong>₹${escapeHtml(data.amount || '?')}</strong> &middot;
                       <strong>${escapeHtml(data.category)}</strong> &middot;
                       <em>${escapeHtml(data.description)}</em></span>
-                <span class="confidence-badge">${confidencePct}% confident</span>
             </div>
+            ${usedAI ? '' : '<p class="preview-hint">The AI is not available right now, so a simple keyword check was used. Please double-check the form.</p>'}
             <p class="preview-hint">Review the form below and click <strong>Add Expense</strong> to save.</p>
         `;
         preview.classList.remove('hidden');
@@ -111,13 +100,12 @@ async function handleNLParse() {
         input.value = '';
 
         // Scroll down so user can see the filled form
-        document.getElementById('expenseForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        console.log('AI parsed expense:', data);
+        expenseForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
     } catch (err) {
+        // Nothing was filled in: the manual form is still right here (FR-2.6)
         console.error('NL parse error:', err.message);
-        preview.innerHTML = `<p class="preview-error">⚠️ ${escapeHtml(err.message)}</p>`;
+        preview.innerHTML = `<p class="preview-error">⚠️ ${escapeHtml(err.message)} You can fill in the form below by hand.</p>`;
         preview.classList.remove('hidden');
     } finally {
         btn.classList.remove('loading');

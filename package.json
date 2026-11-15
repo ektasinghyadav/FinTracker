@@ -8,9 +8,7 @@
     "dev": "nodemon server/index.js"
   },
   "dependencies": {
-    "@ai-sdk/huggingface": "^1.0.37",
     "@ai-sdk/openai-compatible": "^2.0.35",
-    "@google/generative-ai": "^0.24.1",
     "ai": "^6.0.116",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",

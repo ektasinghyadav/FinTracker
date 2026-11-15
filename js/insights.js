@@ -117,71 +117,55 @@ function generateInsights() {
     `).join('');
 }
 
-// Generate a streaming AI summary of the user's finances
-// Uses the Vercel AI SDK on the server + a HuggingFace generative model
-// Text streams in word-by-word, like watching the AI "think and type"
+// Generate a streaming AI summary of the user's month (GET /api/stream/summary)
+// The server reads the spending from the database; text streams in as the AI writes it.
+// If anything goes wrong an error and a "Try again" button are shown.
 async function generateAISummary() {
-    const btn    = document.getElementById('generateSummaryBtn');
-    const output = document.getElementById('aiSummaryOutput');
-    const text   = document.getElementById('aiSummaryText');
-    const cursor = document.getElementById('streamCursor');
+    const btn      = document.getElementById('generateSummaryBtn');
+    const output   = document.getElementById('aiSummaryOutput');
+    const text     = document.getElementById('aiSummaryText');
+    const cursor   = document.getElementById('streamCursor');
+    const errorBox = document.getElementById('aiSummaryError');
 
     if (expenses.length === 0) {
         showToast('Add some expenses first so AI has data to summarise.', 'warning');
         return;
     }
 
-    // Build stats from in-memory expenses
-    const total = expenses.reduce((s, e) => s + e.amount, 0);
-    const byCategory = {};
-    expenses.forEach(e => { byCategory[e.category] = (byCategory[e.category] || 0) + e.amount; });
-    const topCategory = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0]?.[0] || 'None';
-
-    const now = new Date();
-    const dailyAvg = (total / now.getDate()).toFixed(0);
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const daysRemaining = daysInMonth - now.getDate();
-
     // Show the output area and reset it
     output.classList.remove('hidden');
+    errorBox.classList.add('hidden');
     text.textContent = '';
     cursor.style.display = 'inline';
     btn.disabled = true;
     btn.classList.add('loading');
 
     try {
-        const res = await fetch(`${API_URL}/ai/stream/summary`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                total: total.toFixed(0),
-                budget,
-                topCategory,
-                dailyAvg,
-                daysRemaining
-            })
-        });
+        const res = await fetch(`${API_URL}/stream/summary?today=${localDateString(new Date())}`);
 
         if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Stream request failed');
+            let message = 'The summary could not be created. Please try again.';
+            try { message = (await res.json()).error || message; } catch (err) { /* keep the default */ }
+            throw new Error(message);
         }
 
         // Read the response stream chunk by chunk
-        // Each chunk is a small piece of text — we append it directly to the DOM
+        // Each chunk is a small piece of text — we append it directly to the page
         const reader  = res.body.getReader();
         const decoder = new TextDecoder();
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            text.textContent += chunk;
+            text.textContent += decoder.decode(value, { stream: true });
         }
 
     } catch (err) {
         console.error('AI summary error:', err.message);
-        text.textContent = '⚠️ ' + err.message;
+        // fetch gives a vague message when the stream breaks half way, so say it clearly
+        const message = err instanceof TypeError ? 'The summary was interrupted. Please try again.' : err.message;
+        document.getElementById('aiSummaryErrorText').textContent = message;
+        errorBox.classList.remove('hidden');
     } finally {
         cursor.style.display = 'none';
         btn.disabled = false;
@@ -194,6 +178,7 @@ async function initInsights() {
     generateInsights();
 
     document.getElementById('generateSummaryBtn').onclick = generateAISummary;
+    document.getElementById('retrySummaryBtn').onclick = generateAISummary;
 }
 
 startPage('insights', initInsights);

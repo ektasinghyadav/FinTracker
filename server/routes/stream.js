@@ -1,91 +1,114 @@
 const express = require('express');
 const router = express.Router();
+const Expense = require('../models/Expense');
+const Budget = require('../models/Budget');
+const { streamSummary, cleanToday } = require('../services/ai');
 
-// Swap this flag to true once a working Gemini API key is available
-const USE_GEMINI = false;
+// This route is protected: index.js puts authMiddleware in front of it.
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// Add up amounts by category: { 'Food & Dining': 1200, ... }
+function totalsByCategory(expenses) {
+    const totals = {};
+    for (const expense of expenses) {
+        totals[expense.category] = (totals[expense.category] || 0) + expense.amount;
+    }
+    return totals;
+}
 
-// POST /api/ai/stream/summary
-router.post('/summary', async (req, res) => {
+function sumAmounts(expenses) {
+    return expenses.reduce((sum, expense) => sum + expense.amount, 0);
+}
+
+// The month before "YYYY-MM"
+function previousMonth(month) {
+    const [year, mm] = month.split('-').map(Number);
+    const date = new Date(year, mm - 2, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Read one calendar month of THIS user's expenses (dates are "YYYY-MM-DD" text)
+function expensesOfMonth(userId, month) {
+    return Expense.find({ userId, date: { $gte: `${month}-01`, $lte: `${month}-31` } }).lean();
+}
+
+// GET /api/stream/summary
+// Streams a written summary of the user's current month, as plain text.
+// The server reads the data itself from the database; the browser sends nothing about the spending.
+// Optional query: ?today=2026-11-16 (the browser's date, so the month matches the user's time zone)
+router.get('/summary', async (req, res) => {
     try {
-        const { total, budget, topCategory, dailyAvg, daysRemaining } = req.body;
+        const today = cleanToday(req.query.today);
+        const month = today.slice(0, 7);
 
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.setHeader('Transfer-Encoding', 'chunked');
-        res.setHeader('Cache-Control', 'no-cache');
-
-        if (USE_GEMINI && process.env.GEMINI_API_KEY) {
-            // ── Real Gemini streaming ─────────────────────────────────────────
-            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
-
-            const prompt = `You are FinTracker AI, a friendly personal finance assistant.
-Analyze this user's spending data and write a 2-3 sentence summary followed by one specific actionable tip.
-
-Spending data:
-- Total spent this month: ₹${total}
-- Monthly budget: ₹${budget || 'not set'}
-- Highest spending category: ${topCategory || 'none'}
-- Daily average: ₹${dailyAvg}
-- Days remaining in month: ${daysRemaining}
-
-Be concise, warm, and specific. Use ₹ for amounts. Write in plain paragraphs, no bullet points.`;
-
-            const result = await model.generateContentStream(prompt);
-            for await (const chunk of result.stream) {
-                const text = chunk.text();
-                if (text) res.write(text);
-            }
-
-        } else {
-            // ── Computed streaming (fallback) ─────────────────────────────────
-            const totalNum  = parseFloat(total)    || 0;
-            const budgetNum = parseFloat(budget)   || 0;
-            const dailyNum  = parseFloat(dailyAvg) || 0;
-            const daysLeft  = parseInt(daysRemaining) || 0;
-            const projected = Math.round(dailyNum * (new Date().getDate() + daysLeft));
-
-            const sentences = [];
-
-            if (budgetNum > 0) {
-                const pct = Math.round((totalNum / budgetNum) * 100);
-                sentences.push(pct > 100
-                    ? `You have exceeded your monthly budget of ₹${budgetNum.toLocaleString()} — you have spent ₹${totalNum.toLocaleString()}, which is ${pct - 100}% over your limit.`
-                    : `You have spent ₹${totalNum.toLocaleString()} so far this month, which is ${pct}% of your ₹${budgetNum.toLocaleString()} budget — ${100 - pct}% remaining.`
-                );
-            } else {
-                sentences.push(`You have spent ₹${totalNum.toLocaleString()} this month across all categories.`);
-            }
-
-            if (topCategory && topCategory !== 'None') {
-                sentences.push(`Your highest spending category is ${topCategory}, which is where most of your money is going.`);
-            }
-
-            if (budgetNum > 0 && projected > budgetNum) {
-                const safeLimit = daysLeft > 0 ? Math.round((budgetNum - totalNum) / daysLeft) : 0;
-                sentences.push(`At ₹${Math.round(dailyNum)}/day, you are projected to overspend by ₹${Math.round(projected - budgetNum).toLocaleString()}. Try to keep spending under ₹${safeLimit.toLocaleString()}/day for the remaining ${daysLeft} days.`);
-            } else if (daysLeft > 0) {
-                const safeLimit = budgetNum > 0 ? Math.round((budgetNum - totalNum) / daysLeft) : Math.round(dailyNum);
-                sentences.push(`With ${daysLeft} days left and a daily average of ₹${Math.round(dailyNum)}, you are on track. You can comfortably spend up to ₹${safeLimit.toLocaleString()}/day and stay within budget.`);
-            }
-
-            const words = sentences.join(' ').split(' ');
-            for (const word of words) {
-                res.write(word + ' ');
-                await sleep(55);
-            }
+        // Read this month, last month and the budget at the same time (parallel requests)
+        const [expenses, lastMonthExpenses, budget] = await Promise.all([
+            expensesOfMonth(req.userId, month),
+            expensesOfMonth(req.userId, previousMonth(month)),
+            Budget.findOne({ userId: req.userId })
+        ]);
+        if (expenses.length === 0) {
+            return res.status(400).json({ error: 'Add some expenses this month first, so the AI has something to summarise.' });
         }
 
+        // Work out the numbers the AI will talk about
+        const total = sumAmounts(expenses);
+        const [year, mm, dd] = today.split('-').map(Number);
+        const daysInMonth = new Date(year, mm, 0).getDate();
+        const dailyAverage = total / dd;
+
+        const thisMonthTotals = totalsByCategory(expenses);
+        const lastMonthTotals = totalsByCategory(lastMonthExpenses);
+        const categories = Object.keys(thisMonthTotals)
+            .map(name => ({ name, total: thisMonthTotals[name], lastMonth: lastMonthTotals[name] || 0 }))
+            .sort((a, b) => b.total - a.total);
+        const biggest = [...expenses]
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 5)
+            .map(e => ({ name: e.name, category: e.category, amount: e.amount, date: e.date }));
+
+        const context = {
+            month: new Date(year, mm - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            budget: budget ? budget.amount : 0,
+            total,
+            expenseCount: expenses.length,
+            dayOfMonth: dd,
+            daysInMonth,
+            dailyAverage,
+            projected: dailyAverage * daysInMonth,
+            lastMonthTotal: sumAmounts(lastMonthExpenses),
+            categories,
+            biggest
+        };
+
+        // Read the first piece BEFORE sending headers, so an AI failure can still
+        // be answered with a normal error code and message.
+        const stream = streamSummary(context);
+        const first = await stream.next();
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('X-Accel-Buffering', 'no');
+
+        if (!first.done) res.write(first.value);
+        try {
+            for await (const chunk of stream) {
+                res.write(chunk);
+            }
+        } catch (err) {
+            // The AI failed half way. We cannot change the status any more, so close the
+            // connection; the browser sees the broken stream and offers a retry.
+            console.error('Summary stream broke:', err.message);
+            return res.destroy();
+        }
         res.end();
 
     } catch (err) {
-        console.error('Stream error:', err.message);
+        console.error('Summary error:', err.message);
         if (!res.headersSent) {
-            res.status(500).json({ error: err.message });
+            // 502 = the AI service failed (or is not set up); the message says what to do
+            res.status(502).json({ error: err.message });
         } else {
-            res.end();
+            res.destroy();
         }
     }
 });
