@@ -1145,9 +1145,15 @@ select:focus {
         width: 100%;     /* button takes full width on mobile */
     }
 
-    /* Constrain chart canvas height so doughnut isn't clipped */
+    /* Let the charts keep their own height. A fixed max-height cut off the legend. */
     .chart-card canvas {
-        max-height: 260px;
+        max-height: none;
+    }
+
+    /* Bigger tap targets on a phone */
+    .btn-logout,
+    .btn-sm {
+        min-height: 40px;
     }
 }
 
@@ -1267,4 +1273,13 @@ select:focus {
 
 .ai-summary-error p {
     margin: 0;
+}
+
+/* ─── Inline AI hints (Sprint 6, SRS 2.6) ──────────────────────────────────── */
+
+.ai-hint {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    margin: 0.75rem 0;
+    line-height: 1.5;
 }

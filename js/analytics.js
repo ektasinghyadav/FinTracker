@@ -25,11 +25,14 @@ function initCharts() {
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            // taller chart on a phone, so the legend (up to 8 names) has room
+            aspectRatio: window.innerWidth < 600 ? 0.8 : 1,
             plugins: {
                 legend: {
                     position: 'bottom',
                     labels: {
-                        padding: 15,
+                        boxWidth: 14,
+                        padding: 10,
                         font: {
                             size: 12,
                             family: 'DM Sans'

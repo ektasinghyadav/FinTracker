@@ -23,9 +23,14 @@
                     <p>Describe your expense in plain words and let AI fill the form for you</p>
                 </div>
                 <div class="nl-controls">
-                    <input type="text" id="nlInput" placeholder='e.g. "Spent 450 on dinner" or "Paid 2000 for electricity bill"'>
+                    <input type="text" id="nlInput" placeholder='e.g. "Spent 450 on dinner"'>
                     <button id="nlParseBtn" class="btn btn-ai" type="button">Parse with AI</button>
                 </div>
+                <p class="ai-hint">
+                    <strong>How it works:</strong> the AI reads your sentence and fills in the amount, description,
+                    category and date. Check the form before you save. If the AI is not available, simple keyword
+                    rules are used instead, and you can always fill the form by hand.
+                </p>
                 <div id="nlPreview" class="nl-preview hidden"></div>
                 <div class="nl-divider"><span>or fill the form manually</span></div>
             </div>
