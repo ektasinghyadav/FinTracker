@@ -1150,3 +1150,86 @@ select:focus {
         max-height: 260px;
     }
 }
+
+/* ─── Multi-page menu (Sprint 3) ─────────────────────────────────────────── */
+
+/* Smaller header for every page except the dashboard */
+.header-compact {
+    padding: 1.5rem 2.5rem;
+}
+
+.header-compact .logo {
+    font-size: 2.25rem;
+    margin-bottom: 0;
+}
+
+.header-compact .tagline {
+    display: none;
+}
+
+.header-compact .header-content {
+    margin-bottom: 1rem;
+}
+
+.main-nav {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto; /* on a phone the menu scrolls sideways instead of wrapping */
+    padding-bottom: 0.25rem;
+}
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.12);
+    transition: background 0.2s ease;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.nav-link.active {
+    background: white;
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+/* Stat cards sit under the menu on the dashboard */
+.main-nav + .header-stats {
+    margin-top: 1.5rem;
+}
+
+/* Small link in a section heading, e.g. "View all" */
+.section-link {
+    color: var(--color-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Expense row without the edit and delete buttons (dashboard) */
+.expense-item.no-actions {
+    grid-template-columns: 1fr auto;
+}
+
+@media (max-width: 768px) {
+    .header,
+    .header-compact {
+        padding: 1.25rem;
+    }
+
+    .header-compact .logo {
+        font-size: 1.75rem;
+    }
+
+    .expense-item.no-actions {
+        grid-template-columns: 1fr;
+    }
+}

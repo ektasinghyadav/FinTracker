@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - FinTracker AI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header and menu are drawn by app.js (renderHeader) -->
+        <header id="appHeader" class="header header-compact"></header>
+
+        <section class="analytics-section">
+            <div class="section-header">
+                <h2>Spending Analytics</h2>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card">
+                    <h3>Budget Breakdown</h3>
+                    <canvas id="categoryChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Daily Spending Trend (This Month)</h3>
+                    <canvas id="timeChart"></canvas>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer credit -->
+    <footer class="footer-credit">
+        made with ❤️ by Ekta
+    </footer>
+
+    <!-- Loading screen: stays until the login check and the page data are ready -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading your data...</p>
+    </div>
+
+    <!-- Toast notification container — toasts appear here -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Using Chart.js for the graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
+    <script src="js/analytics.js"></script>
+</body>
+</html>

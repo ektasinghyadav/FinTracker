@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Insights - FinTracker AI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header and menu are drawn by app.js (renderHeader) -->
+        <header id="appHeader" class="header header-compact"></header>
+
+        <section class="insights-section">
+            <div class="section-header">
+                <h2>Financial Insights</h2>
+                <span class="ai-badge">AI</span>
+            </div>
+
+            <!-- Streaming AI Summary -->
+            <div class="ai-summary-card">
+                <div class="ai-summary-header">
+                    <span class="ai-badge">AI</span>
+                    <span class="ai-summary-label">Personalized Summary</span>
+                    <button id="generateSummaryBtn" class="btn btn-ai btn-sm">Generate AI Summary</button>
+                </div>
+                <div id="aiSummaryOutput" class="ai-summary-output hidden">
+                    <p id="aiSummaryText"></p>
+                    <span id="streamCursor" class="stream-cursor" style="display:none;">▋</span>
+                </div>
+            </div>
+
+            <div id="insightsPanel" class="insights-panel">
+                <p class="insights-empty">Add some expenses to see AI-powered insights.</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer credit -->
+    <footer class="footer-credit">
+        made with ❤️ by Ekta
+    </footer>
+
+    <!-- Loading screen: stays until the login check and the page data are ready -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading your data...</p>
+    </div>
+
+    <!-- Toast notification container — toasts appear here -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="app.js"></script>
+    <script src="js/insights.js"></script>
+</body>
+</html>

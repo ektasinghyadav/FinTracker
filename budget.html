@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget - FinTracker AI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header and menu are drawn by app.js (renderHeader) -->
+        <header id="appHeader" class="header header-compact"></header>
+
+        <section class="budget-section">
+            <div class="section-header">
+                <h2>Monthly Budget</h2>
+            </div>
+            <div class="budget-controls">
+                <input type="number" id="budgetInput" placeholder="Set your monthly budget" step="0.01">
+                <button id="setBudgetBtn" class="btn btn-primary">Set Budget</button>
+            </div>
+            <div id="budgetAlert" class="budget-alert hidden"></div>
+        </section>
+
+        <section class="forecast-section">
+            <div class="section-header">
+                <h2>Budget Forecast</h2>
+                <span id="riskBadge" class="risk-badge hidden">Low Risk</span>
+            </div>
+            <div id="forecastPanel" class="forecast-panel">
+                <p class="insights-empty">Set a budget and add some expenses to see your forecast.</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer credit -->
+    <footer class="footer-credit">
+        made with ❤️ by Ekta
+    </footer>
+
+    <!-- Loading screen: stays until the login check and the page data are ready -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading your data...</p>
+    </div>
+
+    <!-- Toast notification container — toasts appear here -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="app.js"></script>
+    <script src="js/budget.js"></script>
+</body>
+</html>
