@@ -10,7 +10,8 @@ router.post('/classify', async (req, res) => {
     try {
         const { text } = req.body;
 
-        if (!text || text.trim() === '') {
+        // text must be a non-empty string (a number or object is invalid input)
+        if (typeof text !== 'string' || text.trim() === '') {
             return res.status(400).json({ error: 'text field is required' });
         }
 
@@ -32,7 +33,8 @@ router.post('/parse', async (req, res) => {
     try {
         const { text } = req.body;
 
-        if (!text || text.trim() === '') {
+        // text must be a non-empty string (a number or object is invalid input)
+        if (typeof text !== 'string' || text.trim() === '') {
             return res.status(400).json({ error: 'text field is required' });
         }
 
