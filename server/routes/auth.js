@@ -3,6 +3,8 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Expense = require('../models/Expense');
+const Budget = require('../models/Budget');
 const authMiddleware = require('../middleware/auth');
 
 // Cookie settings — httpOnly means JS cannot read the token (prevents XSS attacks)
@@ -97,6 +99,114 @@ router.get('/me', authMiddleware, async (req, res) => {
         res.json({ name: user.name, email: user.email });
     } catch (err) {
         res.status(500).json({ error: 'Failed to get user' });
+    }
+});
+
+// PUT /api/auth/profile — change the logged-in user's name and email
+router.put('/profile', authMiddleware, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+        if (typeof name !== 'string' || !name.trim()) {
+            return res.status(400).json({ error: 'Name is required' });
+        }
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ error: 'Please enter a valid email address' });
+        }
+
+        // The email must not belong to a different account
+        const taken = await User.findOne({ email, _id: { $ne: req.userId } });
+        if (taken) {
+            return res.status(409).json({ error: 'An account with this email already exists' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.userId,
+            { name: name.trim(), email },
+            { new: true, runValidators: true }
+        );
+        if (!user) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        res.json({ name: user.name, email: user.email });
+
+    } catch (err) {
+        // 11000 = someone took this email at the same moment
+        if (err.code === 11000) {
+            return res.status(409).json({ error: 'An account with this email already exists' });
+        }
+        console.error('Profile update error:', err.message);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+// PUT /api/auth/password — change the password (needs the current password)
+router.put('/password', authMiddleware, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (typeof currentPassword !== 'string' || !currentPassword ||
+            typeof newPassword !== 'string' || !newPassword) {
+            return res.status(400).json({ error: 'Current password and new password are required' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        }
+
+        const user = await User.findById(req.userId);
+        if (!user) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        // The current password must match the stored hash (FR-7.4)
+        const match = await bcrypt.compare(currentPassword, user.password);
+        if (!match) {
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 12);
+        await user.save();
+
+        res.json({ message: 'Password changed' });
+
+    } catch (err) {
+        console.error('Password change error:', err.message);
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
+// DELETE /api/auth/account — delete the account and all its data (needs the password)
+router.delete('/account', authMiddleware, async (req, res) => {
+    try {
+        const { password } = req.body;
+
+        if (typeof password !== 'string' || !password) {
+            return res.status(400).json({ error: 'Password is required to delete your account' });
+        }
+
+        const user = await User.findById(req.userId);
+        if (!user) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) {
+            return res.status(401).json({ error: 'Password is incorrect' });
+        }
+
+        // Remove the data first and the user last, so a failed attempt can simply be repeated
+        await Expense.deleteMany({ userId: req.userId });
+        await Budget.deleteMany({ userId: req.userId });
+        await User.deleteOne({ _id: req.userId });
+
+        res.clearCookie('token');
+        res.json({ message: 'Account deleted' });
+
+    } catch (err) {
+        console.error('Account delete error:', err.message);
+        res.status(500).json({ error: 'Failed to delete account' });
     }
 });
 

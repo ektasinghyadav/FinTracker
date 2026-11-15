@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - FinTracker AI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header and menu are drawn by app.js (renderHeader) -->
+        <header id="appHeader" class="header header-compact"></header>
+
+        <!-- Name and email -->
+        <section class="profile-section">
+            <div class="section-header">
+                <h2>Your Details</h2>
+            </div>
+            <form id="profileForm" class="expense-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="profileName">Name</label>
+                        <input type="text" id="profileName" autocomplete="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="profileEmail">Email</label>
+                        <input type="email" id="profileEmail" autocomplete="email" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Save changes</button>
+            </form>
+        </section>
+
+        <!-- Change password -->
+        <section class="profile-section">
+            <div class="section-header">
+                <h2>Change Password</h2>
+            </div>
+            <form id="passwordForm" class="expense-form">
+                <div class="form-group">
+                    <label for="currentPassword">Current password</label>
+                    <input type="password" id="currentPassword" autocomplete="current-password" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="newPassword">New password</label>
+                        <input type="password" id="newPassword" placeholder="At least 6 characters" autocomplete="new-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm new password</label>
+                        <input type="password" id="confirmPassword" autocomplete="new-password" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Change password</button>
+            </form>
+        </section>
+
+        <!-- Delete account -->
+        <section class="profile-section danger-zone">
+            <div class="section-header">
+                <h2>Delete Account</h2>
+            </div>
+            <p class="danger-text">This permanently deletes your account, all your expenses and your budget. It cannot be undone.</p>
+            <form id="deleteForm" class="expense-form">
+                <div class="form-group">
+                    <label for="deletePassword">Enter your password to confirm</label>
+                    <input type="password" id="deletePassword" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="btn btn-secondary">Delete my account</button>
+            </form>
+        </section>
+    </div>
+
+    <!-- Footer credit -->
+    <footer class="footer-credit">
+        made with ❤️ by Ekta
+    </footer>
+
+    <!-- Loading screen: stays until the login check and the page data are ready -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading your data...</p>
+    </div>
+
+    <!-- Toast notification container — toasts appear here -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="app.js"></script>
+    <script src="js/profile.js"></script>
+</body>
+</html>

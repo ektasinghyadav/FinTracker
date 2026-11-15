@@ -140,7 +140,8 @@ const NAV_LINKS = [
     { page: 'history',     label: 'History',     href: 'history.html' },
     { page: 'budget',      label: 'Budget',      href: 'budget.html' },
     { page: 'analytics',   label: 'Analytics',   href: 'analytics.html' },
-    { page: 'insights',    label: 'AI Insights', href: 'insights.html' }
+    { page: 'insights',    label: 'AI Insights', href: 'insights.html' },
+    { page: 'profile',     label: 'Profile',     href: 'profile.html' }
 ];
 
 // Fills <header id="appHeader"> with the logo, menu, user name and Logout button.

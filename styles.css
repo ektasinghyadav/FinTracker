@@ -1233,3 +1233,14 @@ select:focus {
         grid-template-columns: 1fr;
     }
 }
+
+/* ─── Profile page (Sprint 4) ────────────────────────────────────────────── */
+
+.danger-zone {
+    border: 1px solid var(--color-accent);
+}
+
+.danger-text {
+    color: var(--color-text-muted);
+    margin-bottom: 1.25rem;
+}
