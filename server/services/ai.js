@@ -38,7 +38,7 @@ function getModel() {
         apiKey,
         baseURL: process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1'
     });
-    return groq.chatModel(process.env.GROQ_MODEL || 'llama-3.3-70b-versatile');
+    return groq.chatModel(process.env.GROQ_MODEL || 'openai/gpt-oss-120b');
 }
 
 // Turn any AI error into a short message that is safe to show the user.

@@ -37,7 +37,7 @@ Every page except Login checks the session first and goes to the login page if t
 - **Node.js + Express** – back end API (runs as a Vercel serverless function)
 - **MongoDB Atlas + Mongoose** – database (collections: users, expenses, budgets)
 - **JWT cookie + bcryptjs (cost 12)** – sessions and passwords
-- **Vercel AI SDK** with an OpenAI-compatible LLM provider – AI classification and streamed summary. All AI calls are in `server/services/ai.js`.
+- **Vercel AI SDK** with Groq (open model `openai/gpt-oss-120b`) – AI classification and streamed summary. All AI calls are in `server/services/ai.js`.
 - **Vercel** – hosting
 
 ## API
@@ -72,8 +72,8 @@ All routes except register, login and logout need a valid session. Errors use 40
    |---|---|
    | `MONGODB_URI` | MongoDB Atlas connection string (add your IP in Atlas, Network Access) |
    | `JWT_SECRET` | Any long random string |
-   | `GROQ_API_KEY` | Key for the AI provider (free). Without it the app still works: sentences are read with keyword rules and the AI summary shows a clear "not available" message |
-   | `GROQ_MODEL` | Optional: which model to use |
+   | `GROQ_API_KEY` | Groq API key (free, from console.groq.com). Without it the app still works: sentences are read with keyword rules and the AI summary shows a clear "not available" message |
+   | `GROQ_MODEL` | Optional: which Groq model to use (default `openai/gpt-oss-120b`) |
    | `PORT` | Optional, default 3000 |
 
 3. Run `npm start` (or `npm run dev` for auto-restart)
