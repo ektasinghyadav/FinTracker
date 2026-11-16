@@ -22,7 +22,7 @@ async function saveProfile(e) {
         currentUser = user;
         fillProfileForm();
         // keep the name in the header up to date (textContent keeps it plain text)
-        document.getElementById('userName').textContent = `Hi, ${currentUser.name}`;
+        document.getElementById('userName').textContent = currentUser.name;
         showToast('Profile updated!', 'success');
 
     } catch (err) {

@@ -19,11 +19,11 @@ function generateInsights() {
     if (budget > 0) {
         const pct = Math.round((total / budget) * 100);
         if (pct > 100) {
-            insights.push({ text: `You've exceeded your monthly budget by ₹${(total - budget).toFixed(0)}.`, type: 'danger' });
+            insights.push({ text: `You've exceeded your monthly budget by ${formatMoney((total - budget))}.`, type: 'danger' });
         } else if (pct >= 80) {
-            insights.push({ text: `You've used ${pct}% of your monthly budget (₹${total.toFixed(0)} of ₹${budget.toFixed(0)}). Spend carefully.`, type: 'warning' });
+            insights.push({ text: `You've used ${pct}% of your monthly budget (${formatMoney(total)} of ${formatMoney(budget)}). Spend carefully.`, type: 'warning' });
         } else {
-            insights.push({ text: `You've used ${pct}% of your monthly budget (₹${total.toFixed(0)} of ₹${budget.toFixed(0)}).`, type: 'success' });
+            insights.push({ text: `You've used ${pct}% of your monthly budget (${formatMoney(total)} of ${formatMoney(budget)}).`, type: 'success' });
         }
     }
 
@@ -35,7 +35,7 @@ function generateInsights() {
     const topCategory = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
     if (topCategory) {
         const pct = Math.round((topCategory[1] / total) * 100);
-        insights.push({ text: `Your highest spending category is ${escapeHtml(topCategory[0])} at ₹${topCategory[1].toFixed(0)} (${pct}% of total spending).`, type: 'default' });
+        insights.push({ text: `Your highest spending category is ${escapeHtml(topCategory[0])} at ${formatMoney(topCategory[1])} (${pct}% of total spending).`, type: 'default' });
     }
 
     // ── 3. Week-over-week comparison ─────────────────────────────────────────
@@ -66,14 +66,14 @@ function generateInsights() {
     if (lastWeekTotal > 0) {
         const diff = ((thisWeekTotal - lastWeekTotal) / lastWeekTotal) * 100;
         if (diff > 10) {
-            insights.push({ text: `You've spent ${Math.round(diff)}% more this week (₹${thisWeekTotal.toFixed(0)}) compared to last week (₹${lastWeekTotal.toFixed(0)}).`, type: 'warning' });
+            insights.push({ text: `You've spent ${Math.round(diff)}% more this week (${formatMoney(thisWeekTotal)}) compared to last week (${formatMoney(lastWeekTotal)}).`, type: 'warning' });
         } else if (diff < -10) {
-            insights.push({ text: `Great job! You've spent ${Math.abs(Math.round(diff))}% less this week (₹${thisWeekTotal.toFixed(0)}) compared to last week (₹${lastWeekTotal.toFixed(0)}).`, type: 'success' });
+            insights.push({ text: `Great job! You've spent ${Math.abs(Math.round(diff))}% less this week (${formatMoney(thisWeekTotal)}) compared to last week (${formatMoney(lastWeekTotal)}).`, type: 'success' });
         } else {
-            insights.push({ text: `Your spending this week (₹${thisWeekTotal.toFixed(0)}) is on par with last week (₹${lastWeekTotal.toFixed(0)}).`, type: 'default' });
+            insights.push({ text: `Your spending this week (${formatMoney(thisWeekTotal)}) is on par with last week (${formatMoney(lastWeekTotal)}).`, type: 'default' });
         }
     } else if (thisWeekTotal > 0) {
-        insights.push({ text: `You've spent ₹${thisWeekTotal.toFixed(0)} so far this week.`, type: 'default' });
+        insights.push({ text: `You've spent ${formatMoney(thisWeekTotal)} so far this week.`, type: 'default' });
     }
 
     // ── 4. Projected end-of-month spending ───────────────────────────────────
@@ -85,9 +85,9 @@ function generateInsights() {
 
     if (dayOfMonth > 3 && daysRemaining > 0) {
         if (budget > 0 && projected > budget) {
-            insights.push({ text: `At your current rate of ₹${dailyAvg.toFixed(0)}/day, you may spend ₹${projected} this month — ₹${projected - Math.round(budget)} over budget.`, type: 'danger' });
+            insights.push({ text: `At your current rate of ${formatMoney(dailyAvg)}/day, you may spend ${formatMoney(projected)} this month — ${formatMoney(projected - Math.round(budget))} over budget.`, type: 'danger' });
         } else {
-            insights.push({ text: `At your current rate of ₹${dailyAvg.toFixed(0)}/day, your projected spending for this month is ₹${projected}.`, type: 'default' });
+            insights.push({ text: `At your current rate of ${formatMoney(dailyAvg)}/day, your projected spending for this month is ${formatMoney(projected)}.`, type: 'default' });
         }
     }
 
@@ -105,7 +105,7 @@ function generateInsights() {
     if (spikeEntry && avgPerActiveDay > 0) {
         const spikeDate = new Date(spikeEntry[0] + 'T12:00:00')
             .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        insights.push({ text: `Unusual spike detected: you spent ₹${spikeEntry[1].toFixed(0)} on ${spikeDate}, more than twice your daily average of ₹${avgPerActiveDay.toFixed(0)}.`, type: 'warning' });
+        insights.push({ text: `Unusual spike detected: you spent ${formatMoney(spikeEntry[1])} on ${spikeDate}, more than twice your daily average of ${formatMoney(avgPerActiveDay)}.`, type: 'warning' });
     }
 
     // ── Render ────────────────────────────────────────────────────────────────

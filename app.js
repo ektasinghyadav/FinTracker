@@ -148,27 +148,32 @@ const NAV_LINKS = [
 // statsHtml is optional: only the dashboard shows the stat cards in the header.
 function renderHeader(activePage, statsHtml) {
     const links = NAV_LINKS.map(link => `
-        <a class="nav-link ${link.page === activePage ? 'active' : ''}" href="${link.href}">${link.label}</a>
+        <a class="nav-link" href="${link.href}" ${link.page === activePage ? 'aria-current="page"' : ''}>${link.label}</a>
     `).join('');
 
     const header = document.getElementById('appHeader');
-    header.className = statsHtml ? 'header' : 'header header-compact';
+    header.className = 'header';
     header.innerHTML = `
-        <div class="header-content">
-            <h1 class="logo">FinTracker <span class="logo-ai">AI</span></h1>
-            <p class="tagline">Your AI-powered personal finance assistant</p>
-            <div class="header-user">
-                <span id="userName" class="user-name"></span>
-                <button id="logoutBtn" class="btn-logout">Logout</button>
-            </div>
+        <a class="skip-link" href="#main">Skip to content</a>
+        <h1 class="logo">FinTracker <span class="logo-ai">AI</span></h1>
+        <nav class="main-nav" aria-label="Main">${links}</nav>
+        <div class="header-user">
+            <span id="userName" class="user-name"></span>
+            <button id="logoutBtn" class="btn-logout">Log out</button>
         </div>
-        <nav class="main-nav">${links}</nav>
-        ${statsHtml ? `<div class="header-stats">${statsHtml}</div>` : ''}
     `;
 
+    // Stat cards sit under the bar, not inside it
+    document.querySelectorAll('.header-stats').forEach(el => el.remove());
+    if (statsHtml) header.insertAdjacentHTML('afterend', `<div class="header-stats">${statsHtml}</div>`);
+
     // textContent (not innerHTML) so the name is always shown as plain text
-    document.getElementById('userName').textContent = `Hi, ${currentUser.name}`;
+    document.getElementById('userName').textContent = currentUser.name;
     document.getElementById('logoutBtn').onclick = handleLogout;
+
+    // The skip link jumps to the first section of the page
+    const firstSection = document.querySelector('.container > section');
+    if (firstSection) { firstSection.id = 'main'; firstSection.tabIndex = -1; }
 }
 
 // Log out on the server, then go back to the login page
@@ -220,25 +225,34 @@ function expenseRowHTML(expense, withActions) {
     const color = categoryColors[expense.category] || '#A8DADC';
     const actions = withActions ? `
             <div class="expense-actions">
-                <button class="btn-icon btn-edit" onclick="openEditModal('${expense._id}')" title="Edit">✏️</button>
-                <button class="btn-icon btn-delete" onclick="deleteExpense('${expense._id}')" title="Delete">🗑️</button>
+                <button class="btn-icon btn-edit" onclick="openEditModal('${expense._id}')" title="Edit" aria-label="Edit ${escapeHtml(expense.name)}">✏️</button>
+                <button class="btn-icon btn-delete" onclick="deleteExpense('${expense._id}')" title="Delete" aria-label="Delete ${escapeHtml(expense.name)}">🗑️</button>
             </div>` : '';
 
     return `
-        <div class="expense-item ${withActions ? '' : 'no-actions'}" style="border-left-color: ${color}">
+        <div class="expense-item ${withActions ? '' : 'no-actions'}">
             <div class="expense-info">
                 <h4>${escapeHtml(expense.name)}</h4>
                 <div class="expense-meta">
-                    <span class="expense-category" style="background: ${color}">${escapeHtml(expense.category)}</span>
+                    <span class="expense-category"><span class="category-dot" style="background: ${color}"></span>${escapeHtml(expense.category)}</span>
                     <span>${formatDate(expense.date)}</span>
                 </div>
             </div>
-            <div class="expense-amount">₹${expense.amount.toFixed(2)}</div>
+            <div class="expense-amount">${formatMoney(expense.amount, 2)}</div>
             ${actions}
         </div>`;
 }
 
-// Update statistics in header
+// Money text used everywhere, e.g. formatMoney(19570, 2) -> "₹19,570.00" (Indian digit grouping)
+function formatMoney(amount, decimals = 0) {
+    const sign = amount < 0 ? '-' : '';
+    return sign + '₹' + Math.abs(Number(amount)).toLocaleString('en-IN', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+}
+
+// Update the stat cards (dashboard)
 function updateStats() {
     const totalSpentEl = document.getElementById('totalSpent');
     const budgetRemainingEl = document.getElementById('budgetRemaining');
@@ -247,16 +261,17 @@ function updateStats() {
     const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
     const remaining = budget - total;
 
-    totalSpentEl.textContent = `₹${total.toFixed(2)}`;
-    budgetRemainingEl.textContent = `₹${remaining.toFixed(2)}`;
+    totalSpentEl.textContent = formatMoney(total, 2);
+    budgetRemainingEl.textContent = formatMoney(remaining, 2);
 
-    // Color code the remaining amount
+    // Colour the remaining amount: over budget, low (under 20% left) or fine
+    budgetRemainingEl.classList.remove('is-ok', 'is-low', 'is-over');
     if (remaining < 0) {
-        budgetRemainingEl.style.color = '#E07A5F'; // Red
+        budgetRemainingEl.classList.add('is-over');
     } else if (remaining < budget * 0.2) {
-        budgetRemainingEl.style.color = '#F4A261'; // Orange
+        budgetRemainingEl.classList.add('is-low');
     } else {
-        budgetRemainingEl.style.color = '#2E8B57'; // Green
+        budgetRemainingEl.classList.add('is-ok');
     }
 }
 
@@ -279,7 +294,7 @@ function checkBudget() {
     // Show different alerts based on budget usage
     if (remaining < 0) {
         budgetAlert.classList.add('danger');
-        budgetAlert.textContent = `⚠️ You've exceeded your budget by ₹${Math.abs(remaining).toFixed(2)}!`;
+        budgetAlert.textContent = `⚠️ You've exceeded your budget by ${formatMoney(Math.abs(remaining), 2)}!`;
     } else if (percentUsed >= 90) {
         budgetAlert.classList.add('warning');
         budgetAlert.textContent = `⚠️ Warning: You've used ${percentUsed.toFixed(0)}% of your budget!`;
@@ -366,7 +381,7 @@ function forecastBudget() {
             <div class="cat-forecast-label">
                 <span>${escapeHtml(category)}</span>
                 <span class="cat-forecast-values">
-                    ₹${Math.round(spent).toLocaleString()} spent &rarr; ₹${Math.round(catProj).toLocaleString()} projected
+                    ${formatMoney(spent)} spent &rarr; ${formatMoney(catProj)} projected
                 </span>
             </div>
             <div class="cat-forecast-bar-track">
@@ -382,18 +397,18 @@ function forecastBudget() {
             <div class="forecast-metric">
                 <span class="metric-label">Projected Spend</span>
                 <span class="metric-value ${projected > budget ? 'metric-danger' : ''}">
-                    ₹${Math.round(projected).toLocaleString()}
+                    ${formatMoney(projected)}
                 </span>
                 <span class="metric-sub">
                     ${projected > budget
-                        ? `₹${Math.round(projectedOverspend).toLocaleString()} over budget`
+                        ? `${formatMoney(projectedOverspend)} over budget`
                         : `₹${Math.round(budget - projected).toLocaleString()} under budget`}
                 </span>
             </div>
             <div class="forecast-metric">
                 <span class="metric-label">Safe Daily Limit</span>
                 <span class="metric-value ${safeDailyLimit < 0 ? 'metric-danger' : ''}">
-                    ₹${safeDailyLimit > 0 ? Math.round(safeDailyLimit).toLocaleString() : '0'}
+                    ${formatMoney(safeDailyLimit > 0 ? safeDailyLimit : 0)}
                 </span>
                 <span class="metric-sub">${daysRemaining} days remaining</span>
             </div>
@@ -402,7 +417,7 @@ function forecastBudget() {
                 <span class="metric-value ${daysUntilEmpty < daysRemaining ? 'metric-danger' : ''}">
                     ${daysUntilEmptyText}
                 </span>
-                <span class="metric-sub">at ₹${Math.round(dailyAvg).toLocaleString()}/day avg</span>
+                <span class="metric-sub">at ${formatMoney(dailyAvg)}/day avg</span>
             </div>
         </div>
         <h4 class="forecast-subtitle">Category Projections</h4>
