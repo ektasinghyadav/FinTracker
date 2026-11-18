@@ -1,48 +1,69 @@
-# FinTracker AI – Personal Finance Assistant
+# FinTracker AI
 
-An AI-powered personal finance tracker built with HTML, CSS, JavaScript, Node.js, Express and MongoDB. Users can record expenses (by hand or by typing a sentence), set a monthly budget, see charts and a month-end forecast, and read an AI-written summary of their spending.
+A full-stack personal finance tracker. Type "spent 450 on dinner yesterday" and it fills in the amount, category and date. It forecasts month-end spending against your budget and writes a streamed, plain-language summary of where your money went.
 
-MCA minor project, Tezpur University. Students: Ekta Singh Yadav, Nirmali Saikia.
+**Live demo:** https://fin-tracker-beige.vercel.app/
+&nbsp;·&nbsp; **Demo login:** `demo@fintracker.test` / `demo1234`
+
+## Highlights
+
+- **Natural-language entry.** A sentence becomes a structured expense (amount, description, category, date) through an LLM. If the model is down or rate-limited, a rule-based parser takes over, so adding an expense never fails.
+- **Streamed AI summary.** The spending summary arrives token by token over a streaming HTTP response, calls out unusual spending and ends with one concrete tip. Failures show a clear message and a retry button.
+- **Budget forecasting.** Projects month-end spend per category and overall, gives a safe daily limit, and labels the risk Low, Medium or High.
+- **Secure by default.** Passwords hashed with bcrypt (cost 12), sessions in an httpOnly JWT cookie, and every database query scoped to the logged-in user, taken from the verified session and never from the request body.
+- **Tested.** An automated API smoke test (over 45 checks, `npm run smoke`) covering auth, validation, per-user isolation, budgets, filters and the AI paths, plus layout checks in headless Chrome from 320 px to desktop.
 
 ## Features
 
-- Register, log in and log out (signed session token in an httpOnly cookie, passwords hashed with bcrypt)
-- Add expenses by hand or by typing a sentence such as "spent 200 on lunch yesterday"; the AI fills in the amount, description, category and date
-- If the AI is not available, simple keyword rules fill the form instead, so you can always add an expense
-- Edit and delete expenses, clear all, filter the history by month or by a date range
-- Monthly budget with alerts, a month-end forecast and a risk level (Low, Medium, High)
-- Category and daily spending charts for the current month
-- AI spending summary that streams in as it is written, points out unusual spending and gives one tip (with a Try again button if it fails)
-- Profile page: change name, email and password, or delete the account with all its data
-- Separate pages for each feature, responsive on desktop and mobile
+- Register, log in and log out; edit your profile, change your password or delete your account with all its data
+- Add, edit and delete expenses; filter by month or date range; clear all
+- Monthly budget with alerts as you pass 75% and 90% and when you go over
+- Charts for category breakdown and daily spending
+- Rule-based insights (week-over-week change, top category, spending spikes) next to the AI summary
+- Responsive, keyboard-accessible interface with a visible focus ring, skip link and 44 px tap targets
 
-## Pages
+## Tech stack
 
-| Page | File | What it does |
-|---|---|---|
-| Login / Register | `index.html` | Sign in or create an account |
-| Dashboard | `dashboard.html` | Total spent, budget left, alert, forecast, latest expenses |
-| Add Expense | `add-expense.html` | One-line AI entry and the manual form |
-| History | `history.html` | Filters, edit, delete, clear all |
-| Budget | `budget.html` | Set the budget, see the forecast and risk level |
-| Analytics | `analytics.html` | Category chart and daily chart |
-| AI Insights | `insights.html` | Streamed AI summary and rule-based insights |
-| Profile | `profile.html` | Name, email, password, delete account |
+| Layer | Choice |
+|---|---|
+| Front end | HTML5, CSS3, vanilla JavaScript (ES6), Chart.js; one page and one script per feature |
+| Back end | Node.js, Express, deployed as a Vercel serverless function |
+| Database | MongoDB Atlas with Mongoose (users, expenses, budgets) |
+| Auth | JWT in an httpOnly cookie, bcryptjs |
+| AI | Vercel AI SDK with Groq (`openai/gpt-oss-120b`) for classification and streaming; keyword-rule fallback |
+| Hosting | Vercel, with a preview deployment for every branch |
 
-Every page except Login checks the session first and goes to the login page if there is none. Shared code is in `app.js`; each page has its own small script in `js/`.
+## Architecture
 
-## Tech Stack
+```
+Browser (static pages + page scripts)
+   │  fetch, cookie session
+   ▼
+Express API  ──  auth middleware (verifies JWT, confirms the account still exists)
+   ├─ /api/auth      register, login, logout, me, profile, password, account
+   ├─ /api/expenses  CRUD, filters, clear all     ┐ every query filtered
+   ├─ /api/budget    read, upsert                 ┘ by the session's userId
+   ├─ /api/ai        classify a sentence
+   └─ /api/stream    streamed spending summary
+          │
+          ▼
+   server/services/ai.js  ← the only file that talks to the LLM
+          │  timeouts, error mapping, validation, rule-based fallback
+          ▼
+        Groq API
+```
 
-- **HTML5 / CSS3 / JavaScript** and **Chart.js** – front end
-- **Node.js + Express** – back end API (runs as a Vercel serverless function)
-- **MongoDB Atlas + Mongoose** – database (collections: users, expenses, budgets)
-- **JWT cookie + bcryptjs (cost 12)** – sessions and passwords
-- **Vercel AI SDK** with Groq (open model `openai/gpt-oss-120b`) – AI classification and streamed summary. All AI calls are in `server/services/ai.js`.
-- **Vercel** – hosting
+Design decisions worth noting:
+
+- **One AI boundary.** All model calls live in `server/services/ai.js`. It enforces timeouts, validates the model's output field by field and falls back to rules per field, so a bad answer never reaches the database. The AI only suggests; the user confirms before anything is saved.
+- **Streaming that fails cleanly.** The summary route reads the first chunk before sending headers, so a failure becomes a normal JSON error instead of a half-written stream.
+- **Per-user data isolation.** `userId` always comes from the verified session. A deleted account's token stops working immediately because the auth middleware checks the user still exists.
+- **Indexes.** `Expense.userId` is indexed and `Budget.userId` is unique, giving one budget per user and fast per-user queries.
+- **Consistent API.** Proper status codes (400, 401, 404, 409, 500/502) with short readable messages, and the password hash is never returned.
 
 ## API
 
-All routes except register, login and logout need a valid session. Errors use 400 (invalid input), 401 (not logged in or wrong credentials), 404 (record not found for this user), 409 (duplicate email) and 500/502 (server or AI failure), each with a short `error` message.
+All routes except register, login and logout need a valid session.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -51,80 +72,45 @@ All routes except register, login and logout need a valid session. Errors use 40
 | POST | `/api/auth/logout` | Clear the session cookie |
 | GET | `/api/auth/me` | The logged-in user |
 | PUT | `/api/auth/profile` | Change name and email |
-| PUT | `/api/auth/password` | Change password (needs the current password) |
-| DELETE | `/api/auth/account` | Delete the account and all its data (needs the password) |
-| GET | `/api/expenses` | List expenses; optional `?month=YYYY-MM` or `?from=...&to=...` |
+| PUT | `/api/auth/password` | Change password (needs the current one) |
+| DELETE | `/api/auth/account` | Delete the account and all its data |
+| GET | `/api/expenses` | List expenses; optional `?month=YYYY-MM` or `?from=&to=` |
 | POST | `/api/expenses` | Add an expense |
 | PUT | `/api/expenses/:id` | Edit an expense |
 | DELETE | `/api/expenses/:id` | Delete one expense |
 | DELETE | `/api/expenses` | Delete all of the user's expenses |
 | GET | `/api/budget` | Read the monthly budget |
 | POST | `/api/budget` | Set or update the budget (upsert) |
-| POST | `/api/ai/classify` | Turn a sentence into amount, description, category and date |
+| POST | `/api/ai/classify` | Turn a sentence into an expense |
 | GET | `/api/stream/summary` | Stream the AI spending summary |
 
-## Local Setup
+## Run it locally
 
-1. Clone the repo and run `npm install`
-2. Copy `.env.example` to `.env` and fill in your values:
+1. Clone the repo and run `npm install`.
+2. Copy `.env.example` to `.env` and fill in:
 
-   | Variable | What it is |
+   | Variable | Purpose |
    |---|---|
-   | `MONGODB_URI` | MongoDB Atlas connection string (add your IP in Atlas, Network Access) |
-   | `JWT_SECRET` | Any long random string |
-   | `GROQ_API_KEY` | Groq API key (free, from console.groq.com). Without it the app still works: sentences are read with keyword rules and the AI summary shows a clear "not available" message |
-   | `GROQ_MODEL` | Optional: which Groq model to use (default `openai/gpt-oss-120b`) |
-   | `PORT` | Optional, default 3000 |
+   | `MONGODB_URI` | MongoDB Atlas connection string |
+   | `JWT_SECRET` | Long random string used to sign sessions |
+   | `GROQ_API_KEY` | Free key from console.groq.com. Optional: without it the app still works, using keyword rules and a clear "AI unavailable" message |
+   | `GROQ_MODEL` | Optional model override |
+   | `PORT` | Optional, defaults to 3000 |
 
-3. Run `npm start` (or `npm run dev` for auto-restart)
-4. Open `http://localhost:3000`
-
-### Demo data
-
-`npm run seed` creates a demo user with about three months of expenses and a budget, so the charts, forecast and insights have something to show:
-
-- Email: `demo@fintracker.test`
-- Password: `demo1234`
-
-Running it again resets only that demo user. It never touches anyone else's data.
+3. `npm start` (or `npm run dev` for auto-restart), then open http://localhost:3000.
+4. `npm run seed` adds a demo user (`demo@fintracker.test` / `demo1234`) with about three months of expenses, so the charts and forecast have something to show.
 
 ## Testing
-
-With the server running:
 
 ```
 npm run smoke
 ```
 
-`scripts/smoke-test.js` checks every requirement (FR and NFR in the SRS) that can be checked through the API, using two throwaway users that it deletes at the end. It prints PASS, FAIL, SKIP (could not be checked in this run, with the reason) or MANUAL (needs a browser or a person). To test a deployed site: `BASE_URL=https://your-app.vercel.app npm run smoke`. To see the AI-unavailable checks, start the server without `GROQ_API_KEY`.
-
-The charts, forecast, page redirects, mobile layout and the "log an expense in under 30 seconds" check (NFR-4.1) are checked in a browser: log in as the demo user, click through every page, reload each one, and try the phone width (browser developer tools, 320 to 768 px).
-
-## Requirements coverage
-
-| SRS area | Where it is built | How it is checked |
-|---|---|---|
-| FR-1 Authentication | `server/routes/auth.js`, `server/middleware/auth.js`, `index.html`, login check in `app.js` | smoke test; redirects in the browser |
-| FR-2 Expense management | `server/routes/expenses.js`, `server/routes/ai.js`, `js/add-expense.js`, `js/history.js` | smoke test |
-| FR-3 History and filtering | `GET /api/expenses` filters, `js/history.js` | smoke test |
-| FR-4 Budget and forecast | `server/routes/expenses.js` (budget), `forecastBudget()` in `app.js` | smoke test (budget); forecast in the browser |
-| FR-5 AI insights | `server/routes/stream.js`, `server/services/ai.js`, `js/insights.js` | smoke test (needs the AI key) |
-| FR-6 Analytics | `js/analytics.js` | browser |
-| FR-7 Profile and account | `server/routes/auth.js`, `profile.html`, `js/profile.js` | smoke test |
-| NFR-1 Performance | indexed per-user queries, parallel reads | smoke test (list and budget under 2 s), browser (charts) |
-| NFR-2, NFR-7 Reliability and safety | AI errors become clear messages, AI never writes data | smoke test (run once without the AI key) |
-| NFR-3, NFR-8 Security and data | bcrypt, httpOnly cookie, `userId` always from the session | smoke test |
-| NFR-4 Usability | inline hints, pre-filled date and category, responsive CSS | browser |
-| NFR-5 Maintainability | one page and one script per feature, one route file per area | smoke test, code layout |
-| NFR-6 Scalability | free-text categories, indexed `userId`, one budget per user | smoke test |
+Runs against a live server (`BASE_URL=https://your-app.vercel.app npm run smoke` for a deployment). It creates two throwaway users, checks authentication, validation, per-user isolation, budgets, filters, performance and the AI paths, then deletes them. Each check prints PASS, FAIL, SKIP (with the reason) or MANUAL.
 
 ## Deployment
 
-The app is deployed on Vercel from GitHub; every branch gets its own preview link. In the Vercel project add `MONGODB_URI`, `JWT_SECRET`, `GROQ_API_KEY` and `NODE_ENV=production`. In MongoDB Atlas, Network Access must allow Vercel (Vercel's addresses change, so `0.0.0.0/0` is the usual choice for a student project). `vercel.json` serves the pages and `js/` files as static files and sends `/api/*` to the Express function.
-
-## Live Demo
-
-https://fin-tracker-beige.vercel.app/
+Deployed on Vercel from GitHub. Set `MONGODB_URI`, `JWT_SECRET`, `GROQ_API_KEY` and `NODE_ENV=production` in the project settings, and allow Vercel in MongoDB Atlas Network Access. `vercel.json` serves the pages and scripts as static files and routes `/api/*` to the Express function.
 
 ## Author
 
