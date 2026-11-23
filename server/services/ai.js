@@ -61,7 +61,10 @@ function friendlyAIError(err) {
 // True if the text looks like a real date in YYYY-MM-DD form
 function isValidDateText(text) {
     if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
-    return !isNaN(new Date(text + 'T12:00:00').getTime());
+    const [year, month, day] = text.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    // 2026-02-31 would roll over to March, so the parts must come back unchanged
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
 // Date as "YYYY-MM-DD" (uses the date parts we give it, no time zone surprises)

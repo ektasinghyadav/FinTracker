@@ -11,15 +11,23 @@ router.use(authMiddleware);
 
 // ─── SMALL HELPERS ────────────────────────────────────────────────────────────
 
-// True if the text looks like a real date in YYYY-MM-DD form
+// Size limits, so one bad request cannot store huge values
+const MAX_AMOUNT = 10000000;   // 1 crore
+const MAX_NAME_LENGTH = 100;
+const MAX_CATEGORY_LENGTH = 50;
+
+// True if the text is a real calendar date in YYYY-MM-DD form (2026-02-31 is not)
 function isValidDate(text) {
     if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
-    return !isNaN(new Date(text + 'T12:00:00').getTime());
+    const [year, month, day] = text.split('-').map(Number);
+    if (year < 2000 || year > 2100) return false;
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
-// True if the value is a number greater than 0
-function isPositiveNumber(value) {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+// True if the value is a number from 0.01 up to the maximum amount
+function isValidAmount(value) {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0.01 && value <= MAX_AMOUNT;
 }
 
 // Checks the four expense fields sent by the browser.
@@ -31,11 +39,17 @@ function readExpenseFields(body) {
     if (typeof name !== 'string' || name.trim() === '') {
         return { error: 'Description is required' };
     }
-    if (!isPositiveNumber(amount)) {
-        return { error: 'Amount must be a number greater than 0' };
+    if (name.trim().length > MAX_NAME_LENGTH) {
+        return { error: `Description must be at most ${MAX_NAME_LENGTH} characters` };
+    }
+    if (!isValidAmount(amount)) {
+        return { error: `Amount must be a number from 0.01 to ${MAX_AMOUNT.toLocaleString('en-US')}` };
     }
     if (typeof category !== 'string' || category.trim() === '') {
         return { error: 'Category is required' };
+    }
+    if (category.trim().length > MAX_CATEGORY_LENGTH) {
+        return { error: `Category must be at most ${MAX_CATEGORY_LENGTH} characters` };
     }
     if (!isValidDate(date)) {
         return { error: 'Date must be in YYYY-MM-DD format' };
@@ -81,6 +95,7 @@ router.get('/expenses', async (req, res) => {
         const expenses = await Expense.find(query).sort({ timestamp: -1 });
         res.json(expenses);
     } catch (err) {
+        console.error('Failed to fetch expenses:', err.message);
         res.status(500).json({ error: 'Failed to fetch expenses' });
     }
 });
@@ -94,16 +109,12 @@ router.post('/expenses', async (req, res) => {
             return res.status(400).json({ error });
         }
 
-        const { timestamp } = req.body;
-        const expense = new Expense({
-            userId: req.userId,
-            ...fields,
-            // use the browser's timestamp if it is a number, otherwise the model default
-            ...(typeof timestamp === 'number' ? { timestamp } : {})
-        });
+        // The time of entry is set by the server (model default), not by the browser
+        const expense = new Expense({ userId: req.userId, ...fields });
         await expense.save();
         res.status(201).json(expense);
     } catch (err) {
+        console.error('Failed to save expense:', err.message);
         res.status(500).json({ error: 'Failed to save expense' });
     }
 });
@@ -131,6 +142,7 @@ router.put('/expenses/:id', async (req, res) => {
         }
         res.json(updated);
     } catch (err) {
+        console.error('Failed to update expense:', err.message);
         res.status(500).json({ error: 'Failed to update expense' });
     }
 });
@@ -148,6 +160,7 @@ router.delete('/expenses/:id', async (req, res) => {
         }
         res.json({ message: 'Expense deleted' });
     } catch (err) {
+        console.error('Failed to delete expense:', err.message);
         res.status(500).json({ error: 'Failed to delete expense' });
     }
 });
@@ -158,6 +171,7 @@ router.delete('/expenses', async (req, res) => {
         await Expense.deleteMany({ userId: req.userId });
         res.json({ message: 'All expenses cleared' });
     } catch (err) {
+        console.error('Failed to clear expenses:', err.message);
         res.status(500).json({ error: 'Failed to clear expenses' });
     }
 });
@@ -170,6 +184,7 @@ router.get('/budget', async (req, res) => {
         const budget = await Budget.findOne({ userId: req.userId });
         res.json({ amount: budget ? budget.amount : 0 });
     } catch (err) {
+        console.error('Failed to fetch budget:', err.message);
         res.status(500).json({ error: 'Failed to fetch budget' });
     }
 });
@@ -179,8 +194,8 @@ router.post('/budget', async (req, res) => {
     try {
         const { amount } = req.body;
 
-        if (!isPositiveNumber(amount)) {
-            return res.status(400).json({ error: 'Budget must be a number greater than 0' });
+        if (!isValidAmount(amount)) {
+            return res.status(400).json({ error: `Budget must be a number from 0.01 to ${MAX_AMOUNT.toLocaleString('en-US')}` });
         }
 
         let budget = await Budget.findOne({ userId: req.userId });
@@ -194,6 +209,7 @@ router.post('/budget', async (req, res) => {
 
         res.json({ amount: budget.amount });
     } catch (err) {
+        console.error('Failed to save budget:', err.message);
         res.status(500).json({ error: 'Failed to save budget' });
     }
 });

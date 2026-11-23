@@ -7,13 +7,52 @@ const Expense = require('../models/Expense');
 const Budget = require('../models/Budget');
 const authMiddleware = require('../middleware/auth');
 
-// Cookie settings — httpOnly means JS cannot read the token (prevents XSS attacks)
+// Cookie settings — httpOnly means JS cannot read the token (prevents XSS attacks).
+// sameSite 'lax' means other websites cannot make the browser send this cookie
+// with their requests (blocks cross-site request forgery). The pages and the API
+// are on the same site, so nothing else is needed.
 const COOKIE_OPTIONS = {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production', // HTTPS only in production
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' needed for cross-site on Vercel
+    sameSite: 'lax',
     maxAge:   7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
 };
+
+// Limits on what a user can type
+const MAX_NAME_LENGTH = 100;
+const MAX_PASSWORD_LENGTH = 72; // bcrypt only uses the first 72 characters
+const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+
+// ─── LOGIN ATTEMPT LIMIT ──────────────────────────────────────────────────────
+// After 10 wrong passwords for the same email from the same address, wait 15 minutes.
+// The counts live in memory, so on serverless hosting each running copy keeps its own
+// list: this slows guessing down, it is not a perfect lock.
+const MAX_FAILED_LOGINS = 10;
+const LOCK_MINUTES = 15;
+const failedLogins = new Map(); // key -> { count, firstAt }
+
+function loginKey(req, email) {
+    return `${req.ip}|${email}`;
+}
+
+function isLockedOut(key) {
+    const entry = failedLogins.get(key);
+    if (!entry) return false;
+    if (Date.now() - entry.firstAt > LOCK_MINUTES * 60 * 1000) {
+        failedLogins.delete(key);
+        return false;
+    }
+    return entry.count >= MAX_FAILED_LOGINS;
+}
+
+function recordFailedLogin(key) {
+    const entry = failedLogins.get(key);
+    if (entry) {
+        entry.count += 1;
+    } else {
+        failedLogins.set(key, { count: 1, firstAt: Date.now() });
+    }
+}
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -25,8 +64,17 @@ router.post('/register', async (req, res) => {
         if (typeof name !== 'string' || !name.trim() || !email || typeof password !== 'string' || !password) {
             return res.status(400).json({ error: 'Name, email and password are required' });
         }
+        if (name.trim().length > MAX_NAME_LENGTH) {
+            return res.status(400).json({ error: `Name must be at most ${MAX_NAME_LENGTH} characters` });
+        }
+        if (!EMAIL_PATTERN.test(email)) {
+            return res.status(400).json({ error: 'Please enter a valid email address' });
+        }
         if (password.length < 6) {
             return res.status(400).json({ error: 'Password must be at least 6 characters' });
+        }
+        if (password.length > MAX_PASSWORD_LENGTH) {
+            return res.status(400).json({ error: `Password must be at most ${MAX_PASSWORD_LENGTH} characters` });
         }
 
         const existing = await User.findOne({ email });
@@ -36,7 +84,7 @@ router.post('/register', async (req, res) => {
 
         // Hash the password — never store plain text passwords
         const hashedPassword = await bcrypt.hash(password, 12);
-        const user = await User.create({ name, email, password: hashedPassword });
+        const user = await User.create({ name: name.trim(), email, password: hashedPassword });
 
         // Create a JWT token and store it in a cookie
         const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -64,15 +112,18 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+        const key = loginKey(req, email);
+        if (isLockedOut(key)) {
+            return res.status(429).json({ error: `Too many failed attempts. Please try again in ${LOCK_MINUTES} minutes.` });
         }
 
-        const match = await bcrypt.compare(password, user.password);
+        const user = await User.findOne({ email });
+        const match = user ? await bcrypt.compare(password, user.password) : false;
         if (!match) {
+            recordFailedLogin(key);
             return res.status(401).json({ error: 'Invalid email or password' });
         }
+        failedLogins.delete(key);
 
         const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.cookie('token', token, COOKIE_OPTIONS);
@@ -87,7 +138,7 @@ router.post('/login', async (req, res) => {
 
 // POST /api/auth/logout
 router.post('/logout', (req, res) => {
-    res.clearCookie('token');
+    res.clearCookie('token', { httpOnly: true, secure: COOKIE_OPTIONS.secure, sameSite: 'lax' });
     res.json({ message: 'Logged out successfully' });
 });
 
@@ -111,7 +162,10 @@ router.put('/profile', authMiddleware, async (req, res) => {
         if (typeof name !== 'string' || !name.trim()) {
             return res.status(400).json({ error: 'Name is required' });
         }
-        if (!/^\S+@\S+\.\S+$/.test(email)) {
+        if (name.trim().length > MAX_NAME_LENGTH) {
+            return res.status(400).json({ error: `Name must be at most ${MAX_NAME_LENGTH} characters` });
+        }
+        if (!EMAIL_PATTERN.test(email)) {
             return res.status(400).json({ error: 'Please enter a valid email address' });
         }
 
@@ -153,6 +207,9 @@ router.put('/password', authMiddleware, async (req, res) => {
         }
         if (newPassword.length < 6) {
             return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        }
+        if (newPassword.length > MAX_PASSWORD_LENGTH) {
+            return res.status(400).json({ error: `New password must be at most ${MAX_PASSWORD_LENGTH} characters` });
         }
 
         const user = await User.findById(req.userId);

@@ -121,11 +121,8 @@ async function addExpense(e) {
         name: document.getElementById('expenseName').value,
         amount: parseFloat(document.getElementById('expenseAmount').value),
         category: document.getElementById('expenseCategory').value,
-        date: document.getElementById('expenseDate').value,
-        timestamp: new Date().getTime()
+        date: document.getElementById('expenseDate').value
     };
-
-    console.log('Adding expense:', expenseData);
 
     try {
         // POST the new expense to our server — it saves it to MongoDB

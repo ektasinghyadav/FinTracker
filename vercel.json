@@ -24,6 +24,10 @@
   ],
   "routes": [
     {
+      "src": "/server/(.*)",
+      "status": 404
+    },
+    {
       "src": "/api/(.*)",
       "dest": "server/index.js"
     },

@@ -80,6 +80,7 @@ body {
 
 .stat-value {
     display: block;
+    overflow-wrap: anywhere;
     font-size: 2rem;
     font-weight: 700;
     line-height: 1.2;
@@ -297,7 +298,12 @@ select:focus {
     background: var(--color-bg);
 }
 
+.expense-info {
+    min-width: 0;
+}
+
 .expense-info h4 {
+    overflow-wrap: anywhere;
     font-weight: 600;
     font-size: 1rem;
     margin-bottom: 0.125rem;
